@@ -152,6 +152,24 @@ These work in any project — just type them in Claude Code:
 | `/pulse-insights type:decision` | Show all decisions you've made |
 | `/pulse-insights type:blocked` | Show all current blockers |
 | `/pulse-insights auth` | Search your insights for a keyword |
+| `/pulse-remember fix: ...` | Store a fix you discovered — Claude summarizes it cleanly |
+| `/pulse-remember pattern: ...` | Store a recurring pattern or convention |
+| `/pulse-remember context: ...` | Store background knowledge for future sessions |
+
+### Remembering things
+
+Session-end summaries capture progress, decisions, and blockers automatically. But some knowledge emerges mid-session — a fix you discovered, a pattern you noticed, context that would help next time.
+
+`/pulse-remember` lets you store these intentionally. Claude reads your input, distills it into a clean one-liner, and stores both:
+- **Content** — Claude's concise summary (what you'll see in the dashboard)
+- **Reasoning** — your original words (preserved for context)
+
+```
+You:    /pulse-remember fix: sqlite3 needs absolute paths in hooks on macOS
+Stored: "SQLite3 in hook scripts requires absolute path on macOS — relative paths fail silently"
+```
+
+These are surfaced at the start of your next session as "Knowledge" — before session-specific context, because accumulated knowledge is more valuable than yesterday's progress.
 
 ## How it works (the short version)
 
