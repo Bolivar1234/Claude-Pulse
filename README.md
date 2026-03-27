@@ -1,22 +1,33 @@
 # Claude Pulse
 
-A personal dashboard that tracks everything you do with [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It runs silently in the background, recording your sessions, and gives you a visual overview of your coding activity — what you built, what decisions you made, and how your projects are progressing.
+**Your AI coding companion remembers everything. But do you?**
+
+Claude Pulse gives you a visual memory of every session you've had with [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It captures what you built, what decisions you made, and what's left to do — automatically, in the background, across all your projects.
+
+No setup beyond one command. No cloud accounts. No data leaves your machine.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![SQLite](https://img.shields.io/badge/SQLite-WAL-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-## What does it do?
+## Why Claude Pulse?
 
-Every time you use Claude Code, Claude Pulse quietly captures what happens:
+When you work with Claude Code every day across multiple projects, things get lost. What did you decide last Tuesday? Which project had that bug you fixed? How much progress did you actually make this week?
 
-- **What you worked on** — which files were edited, created, or read
-- **How much you wrote** — lines added and removed, per file and per day
-- **What tools were used** — edits, bash commands, searches, agent spawns
-- **Your decisions** — at the end of meaningful sessions, it captures what you accomplished, key decisions, and what's left to do
-- **Your streaks** — consecutive days of coding activity
+Claude Pulse solves this by silently tracking every session and building a searchable timeline of your work. It's like git log for your entire Claude Code workflow — not just code changes, but decisions, progress, and blockers too.
 
-All of this is stored locally on your machine in a small SQLite database. Nothing is sent anywhere.
+**What it captures automatically:**
+
+- **Sessions** — every time you start and stop Claude Code, across all projects
+- **Tool usage** — edits, bash commands, file reads, searches, agent spawns, skill invocations
+- **Code metrics** — lines added and removed, per file, per session, per day
+- **Decisions and progress** — at the end of meaningful sessions, Claude summarizes what was accomplished and what key choices were made
+- **Cross-project context** — Claude becomes aware of your other projects and can tell you what you worked on yesterday
+
+**What it skips:**
+- Trivial sessions (just reading files, checking status) are auto-closed without interruption
+
+Everything is stored locally in a small SQLite database on your machine. Nothing is sent anywhere.
 
 ## How to set it up
 
@@ -117,13 +128,30 @@ Database info, record counts, and a button to generate demo data if you want to 
 
 ## Quick reference
 
+### Terminal commands
+
 | Command | What it does |
 |---------|-------------|
-| `npx claude-pulse init` | First-time setup (safe to re-run) |
-| `npx claude-pulse start` | Open the dashboard |
+| `npx claude-pulse init` | First-time setup (safe to re-run for upgrades) |
+| `npx claude-pulse start` | Open the dashboard at localhost:3141 |
 | `npx claude-pulse status` | Quick summary in the terminal |
 | `npx claude-pulse doctor` | Check that everything is working |
 | `npx claude-pulse uninstall` | Remove tracking (your data is kept) |
+
+### Slash commands (inside Claude Code)
+
+These work in any project — just type them in Claude Code:
+
+| Command | What it does |
+|---------|-------------|
+| `/pulse-projects` | List all your tracked projects with stats and latest progress |
+| `/pulse-projects my-app` | Show details and recent insights for a specific project |
+| `/pulse-latest` | Show recent work across ALL projects — sessions, decisions, blockers |
+| `/pulse-latest 7` | Same but for the last 7 days |
+| `/pulse-insights` | Overview of all captured insights |
+| `/pulse-insights type:decision` | Show all decisions you've made |
+| `/pulse-insights type:blocked` | Show all current blockers |
+| `/pulse-insights auth` | Search your insights for a keyword |
 
 ## How it works (the short version)
 
