@@ -107,46 +107,48 @@ function mergeHooks() {
 
   const pulseHookCommand = `${HOOK_PATH}`;
 
-  // Check if already installed
-  const alreadyInstalled = JSON.stringify(settings.hooks).includes("claude-pulse");
-  if (alreadyInstalled) {
-    logOk("Hooks already configured in settings.json");
-    return;
+  // Remove old Claude Pulse hooks before re-adding (supports upgrades)
+  for (const event of Object.keys(settings.hooks)) {
+    if (Array.isArray(settings.hooks[event])) {
+      settings.hooks[event] = settings.hooks[event].filter(
+        (entry) => !JSON.stringify(entry).includes("claude-pulse")
+      );
+      if (settings.hooks[event].length === 0) delete settings.hooks[event];
+    }
   }
 
   // Add SessionStart hook
-  // Claude Code passes JSON on stdin with session_id, cwd, hook_event_name
-  // We pipe stdin directly to the hook script — no need to construct our own JSON
+  // Claude Code pipes JSON on stdin with session_id, cwd, hook_event_name
   if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
   settings.hooks.SessionStart.push({
     hooks: [{
       type: "command",
-      command: `cat | ${pulseHookCommand}`,
+      command: pulseHookCommand,
       timeout: 5,
       statusMessage: "Claude Pulse: recording session..."
     }]
   });
 
-  // Add PostToolUse hook
-  // Claude Code provides tool_name, tool_input, tool_response, session_id on stdin
+  // Add PostToolUse hook (async — tracking doesn't need to block Claude)
   if (!settings.hooks.PostToolUse) settings.hooks.PostToolUse = [];
   settings.hooks.PostToolUse.push({
     matcher: "Write|Edit|Bash|Agent|Skill|Read|Glob|Grep|WebFetch|WebSearch|ToolSearch",
     hooks: [{
       type: "command",
-      command: `cat | ${pulseHookCommand}`,
+      command: pulseHookCommand,
       timeout: 3,
+      async: true,
       statusMessage: "Claude Pulse: tracking..."
     }]
   });
 
-  // Add Stop hook
+  // Add Stop hook (needs longer timeout for summary prompt flow)
   if (!settings.hooks.Stop) settings.hooks.Stop = [];
   settings.hooks.Stop.push({
     hooks: [{
       type: "command",
-      command: `cat | ${pulseHookCommand}`,
-      timeout: 5,
+      command: pulseHookCommand,
+      timeout: 10,
       statusMessage: "Claude Pulse: saving session..."
     }]
   });
@@ -245,6 +247,138 @@ function runUninstall() {
   console.log();
 }
 
+// ─── DOCTOR ───
+
+function runDoctor() {
+  console.log("\n  Claude Pulse — Health Check\n");
+  let issues = 0;
+
+  // 1. Check dependencies
+  for (const dep of ["jq", "sqlite3"]) {
+    try {
+      execSync(`which ${dep}`, { stdio: "pipe" });
+      logOk(`${dep} found`);
+    } catch {
+      logWarn(`${dep} not found — install with: brew install ${dep} (macOS) or apt install ${dep} (Linux)`);
+      issues++;
+    }
+  }
+
+  // 2. Check data directory
+  if (existsSync(PULSE_DIR)) {
+    logOk(`Data directory: ${PULSE_DIR}`);
+  } else {
+    logWarn("Data directory missing — run: claude-pulse init");
+    issues++;
+  }
+
+  // 3. Check hook script
+  if (existsSync(HOOK_PATH)) {
+    logOk(`Hook script: ${HOOK_PATH}`);
+    // Check if executable
+    try {
+      execSync(`test -x "${HOOK_PATH}"`, { stdio: "pipe" });
+      logOk("Hook is executable");
+    } catch {
+      logWarn("Hook is not executable — run: chmod +x ~/.claude-pulse/hook.sh");
+      issues++;
+    }
+  } else {
+    logWarn("Hook script missing — run: claude-pulse init");
+    issues++;
+  }
+
+  // 4. Check database
+  if (existsSync(DB_PATH)) {
+    try {
+      const tables = execSync(`sqlite3 "${DB_PATH}" ".tables"`, { encoding: "utf-8" }).trim();
+      const hasInsights = tables.includes("insights");
+      logOk(`Database: ${(statSync(DB_PATH).size / 1024 / 1024).toFixed(1)} MB`);
+      logOk(`Tables: ${tables.replace(/\s+/g, ", ")}`);
+      if (!hasInsights) {
+        logWarn("Missing 'insights' table — run: claude-pulse init (will migrate)");
+        issues++;
+      }
+    } catch (e) {
+      logWarn(`Database error: ${e.message}`);
+      issues++;
+    }
+  } else {
+    logWarn("Database missing — run: claude-pulse init");
+    issues++;
+  }
+
+  // 5. Check hooks in settings.json
+  if (existsSync(CLAUDE_SETTINGS)) {
+    try {
+      const settings = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf-8"));
+      const hooksJson = JSON.stringify(settings.hooks || {});
+      if (hooksJson.includes("claude-pulse")) {
+        logOk("Hooks registered in ~/.claude/settings.json");
+
+        // Check for outdated cat | prefix
+        if (hooksJson.includes("cat |")) {
+          logWarn("Hooks use outdated 'cat |' prefix — run: claude-pulse init (will update)");
+          issues++;
+        }
+
+        // Check for async on PostToolUse
+        const postToolHooks = settings.hooks?.PostToolUse || [];
+        const pulsePostTool = postToolHooks.find(h => JSON.stringify(h).includes("claude-pulse"));
+        if (pulsePostTool) {
+          const hookDef = pulsePostTool.hooks?.[0];
+          if (!hookDef?.async) {
+            logWarn("PostToolUse hook is synchronous — consider re-running: claude-pulse init");
+            issues++;
+          } else {
+            logOk("PostToolUse hook is async (non-blocking)");
+          }
+        }
+      } else {
+        logWarn("Hooks not found in settings.json — run: claude-pulse init");
+        issues++;
+      }
+    } catch (e) {
+      logWarn(`Could not read settings.json: ${e.message}`);
+      issues++;
+    }
+  } else {
+    logWarn("~/.claude/settings.json not found — is Claude Code installed?");
+    issues++;
+  }
+
+  // 6. Check recent data
+  if (existsSync(DB_PATH)) {
+    try {
+      const lastEvent = execSync(
+        `sqlite3 "${DB_PATH}" "SELECT timestamp FROM tool_events ORDER BY timestamp DESC LIMIT 1;"`,
+        { encoding: "utf-8" }
+      ).trim();
+      if (lastEvent) {
+        const ago = Math.floor((Date.now() - new Date(lastEvent).getTime()) / 60000);
+        if (ago < 60) {
+          logOk(`Last event: ${ago} minutes ago`);
+        } else if (ago < 1440) {
+          logOk(`Last event: ${Math.floor(ago / 60)} hours ago`);
+        } else {
+          logWarn(`Last event: ${Math.floor(ago / 1440)} days ago — hook may not be firing`);
+          issues++;
+        }
+      } else {
+        logWarn("No events recorded yet — use Claude Code to generate some");
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Summary
+  console.log();
+  if (issues === 0) {
+    log("All checks passed. Claude Pulse is healthy.\n");
+  } else {
+    log(`${issues} issue(s) found. Fix them with the commands above.\n`);
+  }
+}
+
 // ─── ROUTE ───
 
 switch (command) {
@@ -260,6 +394,9 @@ switch (command) {
   case "uninstall":
     runUninstall();
     break;
+  case "doctor":
+    runDoctor();
+    break;
   case "help":
   case "--help":
   case "-h":
@@ -270,6 +407,7 @@ switch (command) {
     init        Set up hooks and database
     start       Open the dashboard (default)
     status      Quick terminal summary
+    doctor      Health check — verify everything works
     uninstall   Remove hooks from settings.json
     help        Show this message
 `);
