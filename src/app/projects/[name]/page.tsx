@@ -40,6 +40,7 @@ interface ProjectData {
     startedAt: string;
     endedAt: string | null;
     duration: number;
+    summary: string | null;
     status: string;
     tools: number;
     lines: number;
@@ -290,76 +291,68 @@ export default function ProjectDetailPage({
         </div>
       </div>
 
-      {/* Recent Sessions */}
+      {/* Session Log — summaries written by Claude */}
       <div className="rounded-lg border border-zinc-800 p-5">
         <h2 className="mb-4 font-mono text-xs uppercase tracking-wider text-zinc-500">
-          Recent Sessions
+          Session Log
         </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full font-mono text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500">
-                <th className="pb-2 pr-6">Started</th>
-                <th className="pb-2 pr-6 text-right">Duration</th>
-                <th className="pb-2 pr-6 text-right">Lines</th>
-                <th className="pb-2 pr-6 text-right">Tools</th>
-                <th className="pb-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentSessions.map((s) => (
-                <tr
-                  key={s.id}
-                  className="border-b border-zinc-800/50 text-zinc-300 transition-colors hover:bg-zinc-900/50"
-                >
-                  <td className="py-2 pr-6">
-                    <Link
-                      href={`/sessions/${encodeURIComponent(s.id)}`}
-                      className="text-violet-400 hover:underline"
-                    >
-                      {formatDate(s.startedAt)}
-                    </Link>
-                  </td>
-                  <td className="py-2 pr-6 text-right">
-                    {s.duration > 0 ? formatDuration(s.duration) : "--"}
-                  </td>
-                  <td className="py-2 pr-6 text-right">
-                    <span
-                      className={
-                        s.lines >= 0 ? "text-green-400" : "text-red-400"
-                      }
-                    >
-                      {s.lines >= 0 ? `+${s.lines}` : s.lines}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-6 text-right">{s.tools}</td>
-                  <td className="py-2">
-                    <span
-                      className={
-                        s.status === "completed"
-                          ? "text-green-400"
-                          : s.status === "active"
-                            ? "text-yellow-400"
-                            : "text-red-400"
-                      }
-                    >
-                      {s.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {recentSessions.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="py-4 text-center text-xs text-zinc-600"
+        <div className="space-y-3">
+          {recentSessions.map((s) => (
+            <div
+              key={s.id}
+              className="rounded border border-zinc-800/50 p-4 transition-colors hover:border-zinc-700"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/sessions/${encodeURIComponent(s.id)}`}
+                    className="font-mono text-sm text-violet-400 hover:underline"
                   >
-                    No sessions recorded
-                  </td>
-                </tr>
+                    {formatDate(s.startedAt)}
+                  </Link>
+                  <span className="font-mono text-xs text-zinc-600">
+                    {s.duration > 0 ? formatDuration(s.duration) : "--"}
+                  </span>
+                  <span
+                    className={`font-mono text-xs ${
+                      s.lines >= 0 ? "text-green-400/70" : "text-red-400/70"
+                    }`}
+                  >
+                    {s.lines >= 0 ? `+${s.lines}` : s.lines} lines
+                  </span>
+                  <span className="font-mono text-xs text-zinc-600">
+                    {s.tools} tools
+                  </span>
+                </div>
+                <span
+                  className={`font-mono text-xs ${
+                    s.status === "completed"
+                      ? "text-green-400/60"
+                      : s.status === "active"
+                        ? "text-yellow-400/60"
+                        : "text-red-400/60"
+                  }`}
+                >
+                  {s.status}
+                </span>
+              </div>
+              {s.summary && (
+                <p className="mt-2 font-mono text-sm leading-relaxed text-zinc-300">
+                  {s.summary}
+                </p>
               )}
-            </tbody>
-          </table>
+              {!s.summary && s.status === "completed" && (
+                <p className="mt-2 font-mono text-xs italic text-zinc-600">
+                  No summary recorded
+                </p>
+              )}
+            </div>
+          ))}
+          {recentSessions.length === 0 && (
+            <p className="py-4 text-center font-mono text-xs text-zinc-600">
+              No sessions recorded
+            </p>
+          )}
         </div>
       </div>
     </div>

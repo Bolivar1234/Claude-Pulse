@@ -56,31 +56,30 @@ function CalendarHeatmap({ days }: { days: DayData[] }) {
   // Find max lines for intensity scaling
   const maxLines = Math.max(...days.map((d) => d.linesAdded + d.linesRemoved), 1);
 
-  // Build the 90-day grid
-  // Start from 90 days ago, fill to today
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Build the 90-day grid using UTC dates (DB stores UTC)
+  const now = new Date();
+  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-  const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - 89);
+  const startDate = new Date(todayUTC);
+  startDate.setUTCDate(startDate.getUTCDate() - 89);
 
-  // Adjust start to previous Monday
-  const startDay = startDate.getDay();
+  // Adjust start to previous Monday (UTC)
+  const startDay = startDate.getUTCDay();
   const mondayOffset = startDay === 0 ? -6 : 1 - startDay;
-  startDate.setDate(startDate.getDate() + mondayOffset);
+  startDate.setUTCDate(startDate.getUTCDate() + mondayOffset);
 
-  // Generate all dates from startDate to today
+  // Generate all dates from startDate to today (UTC)
   const cells: Array<{ date: string; dayOfWeek: number; data: DayData | null }> = [];
   const current = new Date(startDate);
 
-  while (current <= today) {
+  while (current <= todayUTC) {
     const dateStr = current.toISOString().slice(0, 10);
     cells.push({
       date: dateStr,
-      dayOfWeek: current.getDay() === 0 ? 6 : current.getDay() - 1, // Mon=0, Sun=6
+      dayOfWeek: current.getUTCDay() === 0 ? 6 : current.getUTCDay() - 1, // Mon=0, Sun=6
       data: dayMap.get(dateStr) || null,
     });
-    current.setDate(current.getDate() + 1);
+    current.setUTCDate(current.getUTCDate() + 1);
   }
 
   // Group into weeks (columns)

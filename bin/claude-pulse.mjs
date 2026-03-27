@@ -115,23 +115,26 @@ function mergeHooks() {
   }
 
   // Add SessionStart hook
+  // Claude Code passes JSON on stdin with session_id, cwd, hook_event_name
+  // We pipe stdin directly to the hook script — no need to construct our own JSON
   if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
   settings.hooks.SessionStart.push({
     hooks: [{
       type: "command",
-      command: `echo '{"hook_type":"SessionStart","session_id":"'$CLAUDE_SESSION_ID'","cwd":"'$(pwd)'"}' | ${pulseHookCommand}`,
+      command: `cat | ${pulseHookCommand}`,
       timeout: 5,
       statusMessage: "Claude Pulse: recording session..."
     }]
   });
 
   // Add PostToolUse hook
+  // Claude Code provides tool_name, tool_input, tool_response, session_id on stdin
   if (!settings.hooks.PostToolUse) settings.hooks.PostToolUse = [];
   settings.hooks.PostToolUse.push({
     matcher: "Write|Edit|Bash|Agent|Skill|Read|Glob|Grep|WebFetch|WebSearch|ToolSearch",
     hooks: [{
       type: "command",
-      command: `jq --arg ht PostToolUse --arg sid "$CLAUDE_SESSION_ID" --arg cwd "$(pwd)" '. + {hook_type: $ht, session_id: $sid, cwd: $cwd}' | ${pulseHookCommand}`,
+      command: `cat | ${pulseHookCommand}`,
       timeout: 3,
       statusMessage: "Claude Pulse: tracking..."
     }]
@@ -142,7 +145,7 @@ function mergeHooks() {
   settings.hooks.Stop.push({
     hooks: [{
       type: "command",
-      command: `echo '{"hook_type":"Stop","session_id":"'$CLAUDE_SESSION_ID'","cwd":"'$(pwd)'"}' | ${pulseHookCommand}`,
+      command: `cat | ${pulseHookCommand}`,
       timeout: 5,
       statusMessage: "Claude Pulse: saving session..."
     }]

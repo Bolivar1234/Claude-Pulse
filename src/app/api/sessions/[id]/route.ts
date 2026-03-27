@@ -8,6 +8,7 @@ interface SessionRow {
   started_at: string;
   ended_at: string | null;
   duration_seconds: number | null;
+  summary: string | null;
   status: string;
 }
 
@@ -39,7 +40,7 @@ export async function GET(
 
     const session = db
       .prepare(
-        `SELECT id, project, started_at, ended_at, duration_seconds, status
+        `SELECT id, project, started_at, ended_at, duration_seconds, summary, status
         FROM sessions WHERE id = ?`
       )
       .get(id) as SessionRow | undefined;
@@ -80,6 +81,7 @@ export async function GET(
         startedAt: session.started_at,
         endedAt: session.ended_at,
         duration: session.duration_seconds ?? 0,
+        summary: session.summary,
         status: session.status,
       },
       summary: {

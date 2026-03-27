@@ -22,6 +22,7 @@ interface SessionRow {
   project: string;
   started_at: string;
   duration_seconds: number | null;
+  summary: string | null;
   tool_count: number;
   lines_added: number;
   lines_removed: number;
@@ -177,6 +178,7 @@ export async function GET() {
           s.project,
           s.started_at,
           s.duration_seconds,
+          s.summary,
           COUNT(e.id) as tool_count,
           COALESCE(SUM(e.lines_added), 0) as lines_added,
           COALESCE(SUM(e.lines_removed), 0) as lines_removed
@@ -204,6 +206,7 @@ export async function GET() {
         id: s.id,
         project: s.project,
         duration: s.duration_seconds ?? 0,
+        summary: s.summary,
         lines: s.lines_added - s.lines_removed,
         tools: s.tool_count,
         startedAt: s.started_at,

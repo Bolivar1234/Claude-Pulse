@@ -24,6 +24,7 @@ interface OverviewData {
     id: string;
     project: string;
     duration: number;
+    summary: string | null;
     lines: number;
     tools: number;
     startedAt: string;
@@ -241,52 +242,49 @@ export default function OverviewPage() {
         <h2 className="mb-4 font-mono text-xs uppercase tracking-wider text-zinc-500">
           Recent Sessions
         </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full font-mono text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500">
-                <th className="pb-2 pr-6">Project</th>
-                <th className="pb-2 pr-6">Started</th>
-                <th className="pb-2 pr-6 text-right">Duration</th>
-                <th className="pb-2 pr-6 text-right">Lines</th>
-                <th className="pb-2 text-right">Tools</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentSessions.map((s) => (
-                <tr
-                  key={s.id}
-                  className="border-b border-zinc-800/50 text-zinc-300"
-                >
-                  <td className="py-2 pr-6">
-                    <span className="text-violet-400">{s.project}</span>
-                  </td>
-                  <td className="py-2 pr-6 text-zinc-500">
+        <div className="space-y-3">
+          {recentSessions.map((s) => (
+            <div
+              key={s.id}
+              className="rounded border border-zinc-800/50 p-3 transition-colors hover:border-zinc-700"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-sm text-violet-400">
+                    {s.project}
+                  </span>
+                  <span className="font-mono text-xs text-zinc-600">
                     {formatDate(s.startedAt)}
-                  </td>
-                  <td className="py-2 pr-6 text-right">
+                  </span>
+                  <span className="font-mono text-xs text-zinc-600">
                     {s.duration > 0 ? formatDuration(s.duration) : "--"}
-                  </td>
-                  <td className="py-2 pr-6 text-right">
-                    <span className={s.lines >= 0 ? "text-green-400" : "text-red-400"}>
-                      {s.lines >= 0 ? `+${s.lines}` : s.lines}
-                    </span>
-                  </td>
-                  <td className="py-2 text-right">{s.tools}</td>
-                </tr>
-              ))}
-              {recentSessions.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="py-4 text-center text-xs text-zinc-600"
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`font-mono text-xs ${
+                      s.lines >= 0 ? "text-green-400/70" : "text-red-400/70"
+                    }`}
                   >
-                    No sessions recorded
-                  </td>
-                </tr>
+                    {s.lines >= 0 ? `+${s.lines}` : s.lines}
+                  </span>
+                  <span className="font-mono text-xs text-zinc-600">
+                    {s.tools} tools
+                  </span>
+                </div>
+              </div>
+              {s.summary && (
+                <p className="mt-1.5 font-mono text-xs leading-relaxed text-zinc-400">
+                  {s.summary}
+                </p>
               )}
-            </tbody>
-          </table>
+            </div>
+          ))}
+          {recentSessions.length === 0 && (
+            <p className="py-4 text-center font-mono text-xs text-zinc-600">
+              No sessions recorded
+            </p>
+          )}
         </div>
       </div>
     </div>
