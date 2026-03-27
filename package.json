@@ -1,16 +1,37 @@
 {
   "name": "claude-pulse",
   "version": "0.1.0",
-  "description": "Local-first activity tracker for Claude Code",
-  "private": true,
+  "description": "Local-first activity tracker for Claude Code — tracks sessions, decisions, and progress across projects",
+  "keywords": ["claude", "claude-code", "activity-tracker", "developer-tools", "dashboard", "sqlite"],
+  "license": "MIT",
+  "author": "Clemens Hoenig",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Clemens865/Claude-Pulse.git"
+  },
   "bin": {
     "claude-pulse": "./bin/claude-pulse.mjs"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "hook/",
+    "src/",
+    "next.config.ts",
+    "tsconfig.json",
+    "postcss.config.mjs",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "next dev --port 3141",
     "build": "next build",
     "start": "next start --port 3141",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "prepublishOnly": "npm run build",
+    "postinstall": "echo '\\n  Claude Pulse installed. Run: claude-pulse init\\n'"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",

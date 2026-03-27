@@ -1,0 +1,8 @@
+{
+  "name": "claude-pulse",
+  "description": "Activity tracker for Claude Code — tracks sessions, decisions, and progress across projects with a local dashboard",
+  "version": "0.1.0",
+  "author": {
+    "name": "Clemens Hoenig"
+  }
+}

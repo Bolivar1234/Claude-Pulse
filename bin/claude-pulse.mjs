@@ -174,12 +174,27 @@ function runInit() {
 
 function runStart() {
   const port = 3141;
+  const projectRoot = join(__dirname, "..");
+  const nextDir = join(projectRoot, ".next");
+
+  // Auto-build if no .next directory exists
+  if (!existsSync(nextDir)) {
+    console.log("\n  First run — building dashboard...\n");
+    try {
+      execSync(`cd "${projectRoot}" && npm run build`, { stdio: "inherit" });
+    } catch {
+      console.log("\n  Build failed, starting in dev mode instead.\n");
+      execSync(`cd "${projectRoot}" && npx next dev --port ${port}`, { stdio: "inherit" });
+      return;
+    }
+  }
+
   console.log(`\n  Claude Pulse dashboard starting on http://localhost:${port}\n`);
   try {
-    execSync(`cd "${join(__dirname, "..")}" && npx next start --port ${port}`, { stdio: "inherit" });
+    execSync(`cd "${projectRoot}" && npx next start --port ${port}`, { stdio: "inherit" });
   } catch {
-    // Try dev mode if build doesn't exist
-    execSync(`cd "${join(__dirname, "..")}" && npx next dev --port ${port}`, { stdio: "inherit" });
+    // Fallback to dev mode
+    execSync(`cd "${projectRoot}" && npx next dev --port ${port}`, { stdio: "inherit" });
   }
 }
 

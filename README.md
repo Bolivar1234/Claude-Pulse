@@ -14,6 +14,8 @@ Local-first activity tracker for [Claude Code](https://docs.anthropic.com/en/doc
 - **File activity** -- most-edited files, hotspot detection (20+ edits in a session)
 - **Frameworks & languages** -- auto-detected from commands and file extensions
 - **Productivity streaks** -- consecutive days of activity
+- **Brain (insights)** -- structured progress, decisions, and blockers captured at session end
+- **Smart gating** -- only asks for summaries on meaningful sessions, skips read-only ones
 
 ## Dashboard
 
@@ -22,6 +24,7 @@ The dashboard runs on `http://localhost:3141` and includes:
 | Page | Description |
 |------|-------------|
 | **Overview** | KPI cards (sessions, net lines, hours, streak), daily activity table, top skills/frameworks, tool distribution |
+| **Brain** | Decisions, progress, and blockers timeline — filterable by type and project |
 | **Projects** | Sortable table of all projects with session counts, durations, and line metrics |
 | **Project Detail** | Per-project KPIs, daily breakdown, most-edited files, recent sessions |
 | **Timeline** | 90-day GitHub-style activity heatmap with daily breakdown |
@@ -36,48 +39,47 @@ The dashboard runs on `http://localhost:3141` and includes:
 - `jq` and `sqlite3` (the hook script uses these)
 - Claude Code installed
 
-### Install
+### Option A: npm (recommended)
+
+```bash
+npm install -g claude-pulse
+claude-pulse init
+claude-pulse start
+```
+
+### Option B: Clone and run
 
 ```bash
 git clone https://github.com/Clemens865/Claude-Pulse.git
 cd Claude-Pulse
 npm install
-```
-
-### Initialize
-
-```bash
 npx claude-pulse init
-```
-
-This will:
-1. Create `~/.claude-pulse/` with the database and config
-2. Copy the hook script
-3. Register hooks in `~/.claude/settings.json`
-
-### Start the dashboard
-
-```bash
 npx claude-pulse start
 ```
 
-Opens the dashboard at [http://localhost:3141](http://localhost:3141). On first run it uses `next dev`; after `npm run build` it serves the production build.
+### What `init` does
 
-### Check status from terminal
+1. Creates `~/.claude-pulse/` with the database and config
+2. Copies the hook script
+3. Registers hooks in `~/.claude/settings.json` (with backup)
 
-```bash
-npx claude-pulse status
-```
-
-Prints a quick summary: session count, events, projects, today's lines, and database size.
-
-### Uninstall hooks
+### Commands
 
 ```bash
-npx claude-pulse uninstall
+claude-pulse init        # Set up hooks and database
+claude-pulse start       # Open dashboard at http://localhost:3141
+claude-pulse status      # Quick terminal summary
+claude-pulse doctor      # Health check — verify everything works
+claude-pulse uninstall   # Remove hooks (data preserved)
 ```
 
-Removes hooks from Claude Code settings. Data at `~/.claude-pulse/` is preserved.
+### Health Check
+
+```bash
+claude-pulse doctor
+```
+
+Verifies: dependencies installed, database healthy, hooks registered, PostToolUse is async, recent events flowing.
 
 ## How it works
 
@@ -104,17 +106,21 @@ Claude Code session
 
 ```
 claude-pulse/
-  bin/claude-pulse.mjs        # CLI (init, start, status, uninstall)
+  .claude-plugin/plugin.json  # Claude Code plugin metadata
+  bin/claude-pulse.mjs        # CLI (init, start, status, doctor, uninstall)
   hook/claude-pulse-hook.sh   # Bash hook for Claude Code events
+  hooks/hooks.json            # Plugin hook registration (auto-loaded)
+  skills/                     # Plugin slash commands (/pulse-status, /pulse-doctor)
   src/
     app/
       layout.tsx              # Root layout with sidebar navigation
       page.tsx                # Overview dashboard
+      brain/                  # Insights timeline (decisions, progress, blockers)
       projects/               # Projects list + detail pages
       timeline/               # Activity heatmap
       sessions/               # Session detail view
       settings/               # DB info, seed, clear
-      api/                    # REST endpoints for each page
+      api/                    # REST endpoints (overview, insights, projects, sessions, timeline)
     lib/
       db.ts                   # Singleton SQLite connection
       schema.ts               # Table definitions + migrations
@@ -131,6 +137,7 @@ SQLite with WAL mode, stored at `~/.claude-pulse/tracker.db`.
 |-------|---------|
 | `sessions` | One row per Claude Code session |
 | `tool_events` | Append-only log of every tool call |
+| `insights` | Typed entries: progress, decision, pattern, fix, context, blocked |
 | `daily_summaries` | Pre-computed daily aggregates (survives event purge) |
 | `file_activity` | Per-file daily edit/read/write counts |
 

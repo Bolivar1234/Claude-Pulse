@@ -1,0 +1,43 @@
+{
+  "description": "Claude Pulse — session tracking, insights, and progress capture",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hook/claude-pulse-hook.sh",
+            "timeout": 5,
+            "statusMessage": "Claude Pulse: recording session..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|Bash|Agent|Skill|Read|Glob|Grep|WebFetch|WebSearch|ToolSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hook/claude-pulse-hook.sh",
+            "timeout": 3,
+            "async": true,
+            "statusMessage": "Claude Pulse: tracking..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hook/claude-pulse-hook.sh",
+            "timeout": 10,
+            "statusMessage": "Claude Pulse: saving session..."
+          }
+        ]
+      }
+    ]
+  }
+}
