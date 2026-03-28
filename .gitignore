@@ -4,3 +4,22 @@ node_modules/
 .env
 .env.local
 .DS_Store
+
+# Dev tooling (not part of Claude Pulse)
+.lazy/
+.mcp.json
+.playwright-mcp/
+CLAUDE.md
+blueprints/
+docs/prd/
+*.png
+
+# Lazy-fetch hooks (project-specific, not Claude Pulse)
+hooks/session-start.sh
+hooks/session-stop.sh
+hooks/pre-compact.sh
+hooks/post-edit-check.sh
+hooks/detect-check.sh
+hooks/detect-test.sh
+hooks/check-research-template.sh
+hooks/tag-insights.sh

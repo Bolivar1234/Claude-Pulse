@@ -1,7 +1,0 @@
-{
-  "sprint1_done": {
-    "value": "Foundation complete: Next.js 16 + Tailwind 4 + SQLite. Hook script (558 lines) captures all tool types. Dashboard overview + projects pages. Seed generates 142 sessions, 4320 events, 70 daily summaries across 3 projects. Build passes. APIs tested.",
-    "stored": "2026-03-27T12:42:11.774Z",
-    "updated": "2026-03-27T12:42:11.774Z"
-  }
-}
