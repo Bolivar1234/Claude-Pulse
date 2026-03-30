@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * Claude Pulse CLI
+ * Claude Pulse CLI — Lean Edition
  *
  * Commands:
- *   init       Set up hooks and database
- *   start      Open the dashboard (alias: no args)
+ *   init       Set up database and hook script (no settings.json merge)
+ *   start      Open the dashboard (default)
  *   status     Quick terminal summary
- *   uninstall  Remove hooks and optionally data
+ *   doctor     Health check
+ *   export     Export data as JSON/CSV/NDJSON
+ *   verify     Audit integrity check
+ *   uninstall  Remove hook script (data preserved)
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, statSync } from "fs";
@@ -23,7 +26,6 @@ const PULSE_DIR = join(homedir(), ".claude-pulse");
 const DB_PATH = join(PULSE_DIR, "tracker.db");
 const HOOK_PATH = join(PULSE_DIR, "hook.sh");
 const CONFIG_PATH = join(PULSE_DIR, "config.json");
-const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
 const HOOK_SOURCE = join(__dirname, "..", "hook", "claude-pulse-hook.sh");
 
 const command = process.argv[2] || "start";
@@ -40,7 +42,7 @@ function logWarn(msg) {
   console.log(`  [!!] ${msg}`);
 }
 
-// ─── INIT ───
+// ─── INIT (lean: DB + hook script only, no settings.json merge) ───
 
 function checkDeps() {
   const missing = [];
@@ -80,7 +82,6 @@ function writeConfig() {
 
 function initDb() {
   if (!existsSync(DB_PATH)) {
-    // Hook script creates tables on first run, just touch the file
     execSync(`sqlite3 "${DB_PATH}" "PRAGMA journal_mode=WAL;"`, { stdio: "pipe" });
     logOk("Database created with WAL mode");
   } else {
@@ -88,84 +89,15 @@ function initDb() {
   }
 }
 
-function mergeHooks() {
-  const claudeDir = join(homedir(), ".claude");
-  if (!existsSync(claudeDir)) {
-    mkdirSync(claudeDir, { recursive: true });
-  }
-
-  let settings = {};
-  if (existsSync(CLAUDE_SETTINGS)) {
-    // Backup first
-    const backup = `${CLAUDE_SETTINGS}.backup-${Date.now()}`;
-    copyFileSync(CLAUDE_SETTINGS, backup);
-    logOk(`Backed up settings to ${backup}`);
-    settings = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf-8"));
-  }
-
-  if (!settings.hooks) settings.hooks = {};
-
-  const pulseHookCommand = `${HOOK_PATH}`;
-
-  // Remove old Claude Pulse hooks before re-adding (supports upgrades)
-  for (const event of Object.keys(settings.hooks)) {
-    if (Array.isArray(settings.hooks[event])) {
-      settings.hooks[event] = settings.hooks[event].filter(
-        (entry) => !JSON.stringify(entry).includes("claude-pulse")
-      );
-      if (settings.hooks[event].length === 0) delete settings.hooks[event];
-    }
-  }
-
-  // Add SessionStart hook
-  // Claude Code pipes JSON on stdin with session_id, cwd, hook_event_name
-  if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
-  settings.hooks.SessionStart.push({
-    hooks: [{
-      type: "command",
-      command: pulseHookCommand,
-      timeout: 5,
-      statusMessage: "Claude Pulse: recording session..."
-    }]
-  });
-
-  // Add PostToolUse hook (async — tracking doesn't need to block Claude)
-  if (!settings.hooks.PostToolUse) settings.hooks.PostToolUse = [];
-  settings.hooks.PostToolUse.push({
-    matcher: "Write|Edit|Bash|Agent|Skill|Read|Glob|Grep|WebFetch|WebSearch|ToolSearch",
-    hooks: [{
-      type: "command",
-      command: pulseHookCommand,
-      timeout: 3,
-      async: true,
-      statusMessage: "Claude Pulse: tracking..."
-    }]
-  });
-
-  // Add Stop hook (needs longer timeout for summary prompt flow)
-  if (!settings.hooks.Stop) settings.hooks.Stop = [];
-  settings.hooks.Stop.push({
-    hooks: [{
-      type: "command",
-      command: pulseHookCommand,
-      timeout: 10,
-      statusMessage: "Claude Pulse: saving session..."
-    }]
-  });
-
-  writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
-  logOk("Hooks merged into ~/.claude/settings.json");
-}
-
 function runInit() {
-  console.log("\n  Claude Pulse — Setup\n");
+  console.log("\n  Claude Pulse (Lean) — Setup\n");
   checkDeps();
   setupDir();
   copyHook();
   writeConfig();
   initDb();
-  mergeHooks();
-  console.log("\n  Done! Claude Pulse is active for all projects.");
+  console.log("\n  Done! Hook script installed at ~/.claude-pulse/hook.sh");
+  console.log("  The hook is registered via the plugin's hooks.json — no settings.json changes needed.");
   console.log("  Run: npx claude-pulse       (open dashboard)");
   console.log("  Run: npx claude-pulse status (terminal summary)\n");
 }
@@ -177,7 +109,6 @@ function runStart() {
   const projectRoot = join(__dirname, "..");
   const nextDir = join(projectRoot, ".next");
 
-  // Auto-build if no .next directory exists
   if (!existsSync(nextDir)) {
     console.log("\n  First run — building dashboard...\n");
     try {
@@ -193,7 +124,6 @@ function runStart() {
   try {
     execSync(`cd "${projectRoot}" && npx next start --port ${port}`, { stdio: "inherit" });
   } catch {
-    // Fallback to dev mode
     execSync(`cd "${projectRoot}" && npx next dev --port ${port}`, { stdio: "inherit" });
   }
 }
@@ -227,59 +157,22 @@ function runStatus() {
   }
 }
 
-// ─── UNINSTALL ───
-
-function runUninstall() {
-  console.log("\n  Claude Pulse — Uninstall\n");
-
-  if (existsSync(CLAUDE_SETTINGS)) {
-    try {
-      const settings = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf-8"));
-      let changed = false;
-
-      for (const event of Object.keys(settings.hooks || {})) {
-        const before = settings.hooks[event].length;
-        settings.hooks[event] = settings.hooks[event].filter(
-          (entry) => !JSON.stringify(entry).includes("claude-pulse")
-        );
-        if (settings.hooks[event].length < before) changed = true;
-        if (settings.hooks[event].length === 0) delete settings.hooks[event];
-      }
-
-      if (changed) {
-        writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
-        logOk("Removed hooks from settings.json");
-      } else {
-        log("No Claude Pulse hooks found in settings.json");
-      }
-    } catch (e) {
-      logWarn(`Could not update settings.json: ${e.message}`);
-    }
-  }
-
-  log(`Data directory preserved at: ${PULSE_DIR}`);
-  log("To delete all data: rm -rf ~/.claude-pulse");
-  console.log();
-}
-
 // ─── DOCTOR ───
 
 function runDoctor() {
   console.log("\n  Claude Pulse — Health Check\n");
   let issues = 0;
 
-  // 1. Check dependencies
   for (const dep of ["jq", "sqlite3"]) {
     try {
       execSync(`which ${dep}`, { stdio: "pipe" });
       logOk(`${dep} found`);
     } catch {
-      logWarn(`${dep} not found — install with: brew install ${dep} (macOS) or apt install ${dep} (Linux)`);
+      logWarn(`${dep} not found — install with: brew install ${dep}`);
       issues++;
     }
   }
 
-  // 2. Check data directory
   if (existsSync(PULSE_DIR)) {
     logOk(`Data directory: ${PULSE_DIR}`);
   } else {
@@ -287,10 +180,8 @@ function runDoctor() {
     issues++;
   }
 
-  // 3. Check hook script
   if (existsSync(HOOK_PATH)) {
     logOk(`Hook script: ${HOOK_PATH}`);
-    // Check if executable
     try {
       execSync(`test -x "${HOOK_PATH}"`, { stdio: "pipe" });
       logOk("Hook is executable");
@@ -303,17 +194,11 @@ function runDoctor() {
     issues++;
   }
 
-  // 4. Check database
   if (existsSync(DB_PATH)) {
     try {
       const tables = execSync(`sqlite3 "${DB_PATH}" ".tables"`, { encoding: "utf-8" }).trim();
-      const hasInsights = tables.includes("insights");
       logOk(`Database: ${(statSync(DB_PATH).size / 1024 / 1024).toFixed(1)} MB`);
       logOk(`Tables: ${tables.replace(/\s+/g, ", ")}`);
-      if (!hasInsights) {
-        logWarn("Missing 'insights' table — run: claude-pulse init (will migrate)");
-        issues++;
-      }
     } catch (e) {
       logWarn(`Database error: ${e.message}`);
       issues++;
@@ -323,46 +208,6 @@ function runDoctor() {
     issues++;
   }
 
-  // 5. Check hooks in settings.json
-  if (existsSync(CLAUDE_SETTINGS)) {
-    try {
-      const settings = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf-8"));
-      const hooksJson = JSON.stringify(settings.hooks || {});
-      if (hooksJson.includes("claude-pulse")) {
-        logOk("Hooks registered in ~/.claude/settings.json");
-
-        // Check for outdated cat | prefix
-        if (hooksJson.includes("cat |")) {
-          logWarn("Hooks use outdated 'cat |' prefix — run: claude-pulse init (will update)");
-          issues++;
-        }
-
-        // Check for async on PostToolUse
-        const postToolHooks = settings.hooks?.PostToolUse || [];
-        const pulsePostTool = postToolHooks.find(h => JSON.stringify(h).includes("claude-pulse"));
-        if (pulsePostTool) {
-          const hookDef = pulsePostTool.hooks?.[0];
-          if (!hookDef?.async) {
-            logWarn("PostToolUse hook is synchronous — consider re-running: claude-pulse init");
-            issues++;
-          } else {
-            logOk("PostToolUse hook is async (non-blocking)");
-          }
-        }
-      } else {
-        logWarn("Hooks not found in settings.json — run: claude-pulse init");
-        issues++;
-      }
-    } catch (e) {
-      logWarn(`Could not read settings.json: ${e.message}`);
-      issues++;
-    }
-  } else {
-    logWarn("~/.claude/settings.json not found — is Claude Code installed?");
-    issues++;
-  }
-
-  // 6. Check recent data
   if (existsSync(DB_PATH)) {
     try {
       const lastEvent = execSync(
@@ -385,7 +230,6 @@ function runDoctor() {
     } catch { /* ignore */ }
   }
 
-  // Summary
   console.log();
   if (issues === 0) {
     log("All checks passed. Claude Pulse is healthy.\n");
@@ -455,7 +299,6 @@ function runExport() {
     exportData.user = execSync("whoami", { encoding: "utf-8" }).trim();
     console.log(JSON.stringify(exportData, null, 2));
   } else if (format === "csv") {
-    // CSV output for the primary table
     const targetTable = table === "all" ? "events" : table;
     const rows = exportData[targetTable] || exportData[Object.keys(exportData)[0]] || [];
     if (rows.length === 0) {
@@ -471,7 +314,6 @@ function runExport() {
       }).join(","));
     }
   } else if (format === "ndjson") {
-    // Newline-delimited JSON — ideal for audit log ingestion
     const allRows = [
       ...(exportData.sessions || []).map(r => ({ ...r, _table: "session" })),
       ...(exportData.events || []).map(r => ({ ...r, _table: "event" })),
@@ -494,7 +336,6 @@ function runVerify() {
     process.exit(1);
   }
 
-  // Check database integrity
   try {
     const integrity = execSync(`sqlite3 "${DB_PATH}" "PRAGMA integrity_check;"`, { encoding: "utf-8" }).trim();
     if (integrity === "ok") {
@@ -506,7 +347,6 @@ function runVerify() {
     logWarn(`Database integrity check failed: ${e.message}`);
   }
 
-  // Count records by table
   const tables = ["sessions", "tool_events", "insights", "daily_summaries", "file_activity"];
   for (const t of tables) {
     try {
@@ -515,7 +355,6 @@ function runVerify() {
     } catch { /* ignore */ }
   }
 
-  // Check for sessions with user/hostname
   try {
     const withUser = execSync(
       `sqlite3 "${DB_PATH}" "SELECT COUNT(*) FROM sessions WHERE user IS NOT NULL AND user != '';"`,
@@ -528,7 +367,6 @@ function runVerify() {
     logOk(`Sessions with user identity: ${withUser}/${total}`);
   } catch { /* ignore */ }
 
-  // Check for events with diff content
   try {
     const withDiff = execSync(
       `sqlite3 "${DB_PATH}" "SELECT COUNT(*) FROM tool_events WHERE diff_content IS NOT NULL AND diff_content != '';"`,
@@ -541,7 +379,6 @@ function runVerify() {
     logOk(`Edit events with diff captured: ${withDiff}/${totalEdits}`);
   } catch { /* ignore */ }
 
-  // Check date range coverage
   try {
     const range = execSync(
       `sqlite3 "${DB_PATH}" "SELECT MIN(started_at), MAX(started_at) FROM sessions;"`,
@@ -549,15 +386,22 @@ function runVerify() {
     ).trim();
     const [first, last] = range.split("|");
     if (first && last) {
-      logOk(`Date range: ${first.split("T")[0]} → ${last.split("T")[0]}`);
+      logOk(`Date range: ${first.split("T")[0]} -> ${last.split("T")[0]}`);
     }
   } catch { /* ignore */ }
 
-  // Database file size
   const sizeBytes = statSync(DB_PATH).size;
-  const sizeMB = (sizeBytes / 1024 / 1024).toFixed(2);
-  logOk(`Database size: ${sizeMB} MB`);
+  logOk(`Database size: ${(sizeBytes / 1024 / 1024).toFixed(2)} MB`);
+  console.log();
+}
 
+// ─── UNINSTALL ───
+
+function runUninstall() {
+  console.log("\n  Claude Pulse — Uninstall\n");
+  log(`Data directory preserved at: ${PULSE_DIR}`);
+  log("To delete all data: rm -rf ~/.claude-pulse");
+  log("To remove the plugin, delete or disable it in Claude Code settings.");
   console.log();
 }
 
@@ -573,9 +417,6 @@ switch (command) {
   case "status":
     runStatus();
     break;
-  case "uninstall":
-    runUninstall();
-    break;
   case "doctor":
     runDoctor();
     break;
@@ -585,20 +426,23 @@ switch (command) {
   case "verify":
     runVerify();
     break;
+  case "uninstall":
+    runUninstall();
+    break;
   case "help":
   case "--help":
   case "-h":
     console.log(`
-  Claude Pulse — Activity tracker for Claude Code
+  Claude Pulse (Lean) — Activity tracker for Claude Code
 
   Commands:
-    init        Set up hooks and database
+    init        Set up database and hook script
     start       Open the dashboard (default)
     status      Quick terminal summary
-    doctor      Health check — verify everything works
+    doctor      Health check
     export      Export data (--format json|csv|ndjson --start YYYY-MM-DD --end YYYY-MM-DD)
-    verify      Audit integrity check — record counts, user coverage, diff capture
-    uninstall   Remove hooks from settings.json
+    verify      Audit integrity check
+    uninstall   Show removal instructions
     help        Show this message
 `);
     break;

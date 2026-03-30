@@ -1,5 +1,5 @@
 {
-  "description": "Claude Pulse — session tracking, insights, and progress capture",
+  "description": "Claude Pulse Lean — metrics-only session and tool tracking",
   "hooks": {
     "SessionStart": [
       {
@@ -7,8 +7,8 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hook/claude-pulse-hook.sh",
-            "timeout": 5,
-            "statusMessage": "Claude Pulse: recording session..."
+            "timeout": 3,
+            "statusMessage": "Pulse: session start"
           }
         ]
       }
@@ -22,7 +22,7 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hook/claude-pulse-hook.sh",
             "timeout": 3,
             "async": true,
-            "statusMessage": "Claude Pulse: tracking..."
+            "statusMessage": "Pulse: tracking"
           }
         ]
       }
@@ -33,8 +33,9 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hook/claude-pulse-hook.sh",
-            "timeout": 10,
-            "statusMessage": "Claude Pulse: saving session..."
+            "timeout": 5,
+            "async": true,
+            "statusMessage": "Pulse: finalizing"
           }
         ]
       }
